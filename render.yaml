@@ -3,9 +3,9 @@ services:
     name: ai-bridge
     env: python
     region: oregon
-    plan: starter
+    plan: free  # Changed from starter - sleeps after 15min inactivity
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 4 --timeout 120 --log-level info
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     
     envVars:
       - key: BRIDGE_API_KEY
@@ -28,18 +28,6 @@ services:
       - key: OBSIDIAN_API_KEY
         sync: false
       
-      - key: OBSIDIAN_API_URL
-        sync: false
-      
-      - key: PINECONE_API_KEY
-        sync: false
-      
-      - key: NOTION_WEBHOOK_SECRET
-        sync: false
-      
-      - key: OBSIDIAN_WEBHOOK_SECRET
-        sync: false
-      
       - key: FLASK_ENV
         value: production
 
@@ -47,4 +35,4 @@ databases:
   - name: ai-bridge-db
     databaseName: ai_bridge
     user: bridge_user
-    plan: starter
+    plan: free  # Changed from starter - FREE!

@@ -15,16 +15,16 @@ class OpenAIAdapter(BasePlatformAdapter):
         api_key = config.get('api_key') or os.getenv('OPENAI_API_KEY')
         self.client = OpenAI(api_key=api_key)
         self.vector_store_id = config.get('vector_store_id')
-        self.dedup_cache = {}  # In production, use Redis
     
     def upload(self, content: bytes, filename: str, content_type: str, metadata: Dict) -> Dict:
         """Upload file to OpenAI vector store"""
         try:
-            # Check for duplicates
+            # Check for duplicates via DB-backed dedup cache
             dedup_key = self.get_dedup_key(content, filename)
-            if dedup_key in self.dedup_cache:
+            cached_id = self._check_dedup(dedup_key)
+            if cached_id:
                 self.logger.info(f"Duplicate detected: {filename}, skipping upload")
-                return {"status": "skipped", "reason": "duplicate", "file_id": self.dedup_cache[dedup_key]}
+                return {"status": "skipped", "reason": "duplicate", "file_id": cached_id}
             
             # Step 1: Create file object
             file_obj = self.client.files.create(
@@ -40,8 +40,8 @@ class OpenAIAdapter(BasePlatformAdapter):
                 file_id=file_obj.id
             )
             
-            # Cache for deduplication
-            self.dedup_cache[dedup_key] = file_obj.id
+            # Persist for deduplication across restarts
+            self._store_dedup(dedup_key, file_obj.id)
             
             self.logger.info(f"Added {filename} to vector store {self.vector_store_id}")
             
@@ -98,3 +98,21 @@ class OpenAIAdapter(BasePlatformAdapter):
             return {"status": "healthy", "platform": "openai"}
         except Exception as e:
             return {"status": "unhealthy", "platform": "openai", "error": str(e)}
+
+    # ── Dedup helpers (DB-backed) ─────────────────────────────────────────────
+
+    def _check_dedup(self, dedup_key: str):
+        """Return cached file_id if content was already uploaded, else None."""
+        try:
+            from utils.db_manager import DBManager
+            return DBManager().get_dedup(dedup_key, "openai")
+        except Exception:
+            return None
+
+    def _store_dedup(self, dedup_key: str, file_id: str) -> None:
+        """Persist a dedup entry so future restarts can detect duplicates."""
+        try:
+            from utils.db_manager import DBManager
+            DBManager().set_dedup(dedup_key, file_id, "openai")
+        except Exception as e:
+            self.logger.warning(f"Could not store dedup entry: {e}")

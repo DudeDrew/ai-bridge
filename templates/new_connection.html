@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% block title %}New Connection — AI Bridge{% endblock %}
+
+{% block content %}
+
+<div class="max-w-2xl mx-auto" x-data="newConnectionForm()">
+
+  <!-- Page header -->
+  <div class="mb-8">
+    <a href="{{ url_for('dashboard') }}" class="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      Back to dashboard
+    </a>
+    <h1 class="text-xl font-semibold text-slate-900">New Connection</h1>
+    <p class="text-sm text-slate-500 mt-1">Link a knowledge base to an AI platform.</p>
+  </div>
+
+  <!-- Server-side error (non-JS fallback) -->
+  {% if error %}
+    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{{ error }}</div>
+  {% endif %}
+
+  <!-- Step indicator -->
+  <div class="flex items-center gap-2 mb-8">
+    <template x-for="(label, i) in steps" :key="i">
+      <div class="flex items-center gap-2">
+        <div class="flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold transition-colors"
+             :class="{
+               'bg-indigo-600 text-white': step === i + 1,
+               'bg-green-500 text-white': step > i + 1,
+               'bg-slate-200 text-slate-500': step < i + 1
+             }">
+          <span x-show="step <= i + 1" x-text="i + 1"></span>
+          <svg x-show="step > i + 1" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <span class="text-xs font-medium hidden sm:block"
+              :class="step === i + 1 ? 'text-slate-900' : 'text-slate-400'"
+              x-text="label"></span>
+        <div x-show="i < steps.length - 1" class="w-8 h-px bg-slate-200 hidden sm:block"></div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Card -->
+  <div class="bg-white rounded-xl border border-slate-200 p-6">
+
+    <!-- Step 1: Name + Source type -->
+    <div x-show="step === 1">
+      <h2 class="text-base font-medium text-slate-900 mb-4">Name &amp; Source</h2>
+
+      <div class="mb-5">
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Connection name <span class="text-slate-400 font-normal">(optional)</span></label>
+        <input type="text" x-model="form.name" placeholder="e.g. Notion research → OpenAI"
+               class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-slate-400" />
+      </div>
+
+      <label class="block text-sm font-medium text-slate-700 mb-2">Source platform</label>
+      <div class="grid grid-cols-2 gap-3">
+        <template x-for="src in sources" :key="src.id">
+          <button type="button" @click="form.source.type = src.id"
+            class="flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all"
+            :class="form.source.type === src.id
+              ? 'border-indigo-500 bg-indigo-50'
+              : 'border-slate-200 hover:border-slate-300'">
+            <span class="text-2xl" x-text="src.icon"></span>
+            <div>
+              <p class="text-sm font-semibold text-slate-900" x-text="src.name"></p>
+              <p class="text-xs text-slate-500 mt-0.5" x-text="src.desc"></p>
+            </div>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Step 2: Source configuration -->
+    <div x-show="step === 2">
+      <h2 class="text-base font-medium text-slate-900 mb-4">Configure Source</h2>
+
+      <!-- Notion -->
+      <div x-show="form.source.type === 'notion'" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Notion Database ID <span class="text-red-500">*</span></label>
+          <input type="text" x-model="form.source.database_id"
+                 placeholder="e.g. 1a2b3c4d5e6f7890abcdef1234567890"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+          <p class="text-xs text-slate-400 mt-1.5">
+            Find this in the Notion URL: notion.so/…/<strong>[database-id]</strong>?v=…
+          </p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Poll interval (seconds) <span class="text-slate-400 font-normal">— optional</span></label>
+          <input type="number" x-model.number="form.source.poll_interval"
+                 placeholder="e.g. 3600 (1 hour)"
+                 min="60"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+          <p class="text-xs text-slate-400 mt-1.5">Leave blank to disable automatic polling. Minimum 60 seconds.</p>
+        </div>
+      </div>
+
+      <!-- Obsidian -->
+      <div x-show="form.source.type === 'obsidian'" class="space-y-4">
+        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mb-2">
+          Requires the <strong>Local REST API</strong> community plugin installed in Obsidian and
+          <code class="bg-amber-100 px-1 rounded">OBSIDIAN_API_URL</code> / <code class="bg-amber-100 px-1 rounded">OBSIDIAN_API_KEY</code> set.
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Vault name <span class="text-red-500">*</span></label>
+          <input type="text" x-model="form.source.vault_name"
+                 placeholder="e.g. My Vault"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Poll interval (seconds) <span class="text-slate-400 font-normal">— optional</span></label>
+          <input type="number" x-model.number="form.source.poll_interval"
+                 placeholder="e.g. 1800 (30 min)"
+                 min="60"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Destination type -->
+    <div x-show="step === 3">
+      <h2 class="text-base font-medium text-slate-900 mb-4">Destination Platform</h2>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <template x-for="dst in destinations" :key="dst.id">
+          <button type="button" @click="form.destination.platform = dst.id"
+            class="flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all"
+            :class="form.destination.platform === dst.id
+              ? 'border-indigo-500 bg-indigo-50'
+              : 'border-slate-200 hover:border-slate-300'">
+            <span class="text-2xl" x-text="dst.icon"></span>
+            <div>
+              <p class="text-sm font-semibold text-slate-900" x-text="dst.name"></p>
+              <p class="text-xs text-slate-500 mt-0.5" x-text="dst.desc"></p>
+            </div>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Step 4: Destination configuration -->
+    <div x-show="step === 4">
+      <h2 class="text-base font-medium text-slate-900 mb-4">Configure Destination</h2>
+
+      <!-- OpenAI -->
+      <div x-show="form.destination.platform === 'openai'">
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Vector Store ID <span class="text-red-500">*</span></label>
+        <input type="text" x-model="form.destination.vector_store_id"
+               placeholder="e.g. vs_abc123"
+               class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+        <p class="text-xs text-slate-400 mt-1.5">
+          Create a vector store in the <a href="https://platform.openai.com/storage" target="_blank" class="underline">OpenAI dashboard</a> and paste the ID here.
+        </p>
+      </div>
+
+      <!-- Anthropic -->
+      <div x-show="form.destination.platform === 'anthropic'">
+        <div class="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <p class="font-medium mb-1">No extra configuration needed.</p>
+          <p class="text-xs">Files are uploaded to your Anthropic account using the <code class="bg-amber-100 px-1 rounded">ANTHROPIC_API_KEY</code> environment variable. They can then be referenced in Claude API calls by file ID.</p>
+        </div>
+      </div>
+
+      <!-- Pinecone -->
+      <div x-show="form.destination.platform === 'pinecone'" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Index name <span class="text-red-500">*</span></label>
+          <input type="text" x-model="form.destination.index_name"
+                 placeholder="e.g. my-knowledge-base"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Namespace <span class="text-slate-400 font-normal">— optional</span></label>
+          <input type="text" x-model="form.destination.namespace"
+                 placeholder="e.g. production"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400" />
+        </div>
+        <p class="text-xs text-slate-400">Requires a Pinecone index with dimension 1536 (text-embedding-3-small).</p>
+      </div>
+    </div>
+
+    <!-- Step 5: Review -->
+    <div x-show="step === 5">
+      <h2 class="text-base font-medium text-slate-900 mb-4">Review &amp; Create</h2>
+
+      <dl class="divide-y divide-slate-100 text-sm mb-6">
+        <div class="flex gap-4 py-2.5">
+          <dt class="w-32 flex-shrink-0 text-slate-500">Name</dt>
+          <dd class="text-slate-900 font-medium" x-text="form.name || '(auto-generated ID)'"></dd>
+        </div>
+        <div class="flex gap-4 py-2.5">
+          <dt class="w-32 flex-shrink-0 text-slate-500">Source</dt>
+          <dd class="text-slate-900 font-medium capitalize" x-text="form.source.type"></dd>
+        </div>
+        <div class="flex gap-4 py-2.5" x-show="form.source.database_id || form.source.vault_name">
+          <dt class="w-32 flex-shrink-0 text-slate-500">Source ID</dt>
+          <dd class="text-slate-900 font-mono text-xs break-all" x-text="form.source.database_id || form.source.vault_name"></dd>
+        </div>
+        <div class="flex gap-4 py-2.5" x-show="form.source.poll_interval">
+          <dt class="w-32 flex-shrink-0 text-slate-500">Poll every</dt>
+          <dd class="text-slate-900" x-text="form.source.poll_interval + ' seconds'"></dd>
+        </div>
+        <div class="flex gap-4 py-2.5">
+          <dt class="w-32 flex-shrink-0 text-slate-500">Destination</dt>
+          <dd class="text-slate-900 font-medium capitalize" x-text="form.destination.platform"></dd>
+        </div>
+        <div class="flex gap-4 py-2.5" x-show="form.destination.vector_store_id || form.destination.index_name">
+          <dt class="w-32 flex-shrink-0 text-slate-500">Dest. ID</dt>
+          <dd class="text-slate-900 font-mono text-xs break-all" x-text="form.destination.vector_store_id || form.destination.index_name"></dd>
+        </div>
+      </dl>
+
+      <!-- Error message -->
+      <div x-show="submitError" x-cloak class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" x-text="submitError"></div>
+    </div>
+
+  </div>
+
+  <!-- Navigation buttons -->
+  <div class="flex items-center justify-between mt-6">
+    <button type="button" @click="prev()"
+      x-show="step > 1"
+      class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+      Back
+    </button>
+    <div x-show="step === 1" class="flex-1"></div>
+
+    <button type="button" @click="next()"
+      x-show="step < 5"
+      :disabled="!canProceed()"
+      class="ml-auto px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+      Continue
+    </button>
+
+    <button type="button" @click="submit()"
+      x-show="step === 5"
+      :disabled="submitting"
+      class="ml-auto inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">
+      <svg x-show="submitting" x-cloak class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      <span x-text="submitting ? 'Creating…' : 'Create Connection'"></span>
+    </button>
+  </div>
+
+</div>
+
+<script>
+function newConnectionForm() {
+  return {
+    step: 1,
+    steps: ['Source', 'Configure', 'Destination', 'Configure', 'Review'],
+    submitting: false,
+    submitError: '',
+
+    sources: [
+      { id: 'notion',   name: 'Notion',   icon: '📄', desc: 'Sync a Notion database' },
+      { id: 'obsidian', name: 'Obsidian', icon: '💎', desc: 'Sync an Obsidian vault' },
+    ],
+    destinations: [
+      { id: 'openai',    name: 'OpenAI',    icon: '🟢', desc: 'Vector store for Assistants API' },
+      { id: 'anthropic', name: 'Anthropic', icon: '🟡', desc: 'Files API for Claude' },
+      { id: 'pinecone',  name: 'Pinecone',  icon: '🔵', desc: 'Semantic vector search' },
+    ],
+
+    form: {
+      name: '',
+      source: { type: '', database_id: '', vault_name: '', poll_interval: null },
+      destination: { platform: '', vector_store_id: '', index_name: '', namespace: '' },
+      enabled: true,
+    },
+
+    canProceed() {
+      if (this.step === 1) return this.form.source.type !== '';
+      if (this.step === 2) {
+        if (this.form.source.type === 'notion') return this.form.source.database_id.trim() !== '';
+        if (this.form.source.type === 'obsidian') return this.form.source.vault_name.trim() !== '';
+        return true;
+      }
+      if (this.step === 3) return this.form.destination.platform !== '';
+      if (this.step === 4) {
+        if (this.form.destination.platform === 'openai') return this.form.destination.vector_store_id.trim() !== '';
+        if (this.form.destination.platform === 'pinecone') return this.form.destination.index_name.trim() !== '';
+        return true; // anthropic needs no extra config
+      }
+      return true;
+    },
+
+    next() {
+      if (this.canProceed() && this.step < 5) this.step++;
+    },
+
+    prev() {
+      if (this.step > 1) this.step--;
+    },
+
+    buildPayload() {
+      // Build clean payload, omitting empty/null values
+      const src = Object.fromEntries(
+        Object.entries(this.form.source).filter(([, v]) => v !== '' && v !== null)
+      );
+      const dst = Object.fromEntries(
+        Object.entries(this.form.destination).filter(([, v]) => v !== '' && v !== null)
+      );
+      return {
+        name: this.form.name.trim() || undefined,
+        source: src,
+        destination: dst,
+        enabled: true,
+      };
+    },
+
+    async submit() {
+      this.submitting = true;
+      this.submitError = '';
+      try {
+        const res = await fetch('/dashboard/connections/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.buildPayload()),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = '/dashboard';
+        } else {
+          this.submitError = data.error || 'Failed to create connection.';
+        }
+      } catch (e) {
+        this.submitError = 'Network error. Please try again.';
+      } finally {
+        this.submitting = false;
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}

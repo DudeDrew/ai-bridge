@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — AI Bridge{% endblock %}
+
+{% block content %}
+
+{# ── Stats row ──────────────────────────────────────────────────────────────── #}
+{% set total = webhooks | length %}
+{% set active = webhooks.values() | selectattr('enabled') | list | length %}
+
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Connections</p>
+    <p class="text-3xl font-bold text-slate-900">{{ total }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Active</p>
+    <p class="text-3xl font-bold text-green-600">{{ active }}</p>
+  </div>
+  <div class="bg-white rounded-xl border border-slate-200 p-5 col-span-2 sm:col-span-1">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Recent Events</p>
+    <p class="text-3xl font-bold text-indigo-600">{{ recent_log | length }}</p>
+  </div>
+</div>
+
+<div class="lg:grid lg:grid-cols-3 lg:gap-8">
+
+  {# ── Connections table ─────────────────────────────────────────────────────── #}
+  <section class="lg:col-span-2 mb-8 lg:mb-0">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-semibold text-slate-900">Connections</h2>
+      <a href="{{ url_for('new_connection') }}"
+         class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+        + New
+      </a>
+    </div>
+
+    {% if webhooks %}
+      <div class="space-y-3">
+        {% for wid, cfg in webhooks.items() %}
+          {% set src = cfg.get('source', {}) %}
+          {% set dst = cfg.get('destination', {}) %}
+          {% set enabled = cfg.get('enabled', True) %}
+          {% set wname = cfg.get('name') or wid %}
+
+          <div class="bg-white rounded-xl border border-slate-200 p-4"
+               x-data="connectionCard('{{ wid }}', {{ 'true' if enabled else 'false' }})">
+
+            {# Header row #}
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div class="min-w-0">
+                <p class="font-medium text-slate-900 truncate">{{ wname }}</p>
+                <p class="text-xs text-slate-500 mt-0.5">ID: {{ wid }}</p>
+              </div>
+
+              {# Enabled toggle #}
+              <button @click="toggle()"
+                class="flex-shrink-0 relative inline-flex h-5 w-9 rounded-full transition-colors duration-200"
+                :class="enabled ? 'bg-green-500' : 'bg-slate-200'"
+                title="Toggle enabled/disabled">
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 m-0.5"
+                      :class="enabled ? 'translate-x-4' : 'translate-x-0'"></span>
+              </button>
+            </div>
+
+            {# Source → Destination #}
+            <div class="flex items-center gap-2 mb-4 flex-wrap">
+              {# Source badge #}
+              {% if src.get('type') == 'notion' %}
+                <span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium">
+                  Notion
+                </span>
+                {% if src.get('database_id') %}
+                  <span class="text-xs text-slate-400 truncate max-w-[120px]" title="{{ src.database_id }}">
+                    {{ src.database_id[:16] }}…
+                  </span>
+                {% endif %}
+              {% elif src.get('type') == 'obsidian' %}
+                <span class="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                  Obsidian
+                </span>
+                {% if src.get('vault_name') %}
+                  <span class="text-xs text-slate-400">{{ src.vault_name }}</span>
+                {% endif %}
+              {% else %}
+                <span class="inline-flex items-center px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs">
+                  {{ src.get('type', '?') }}
+                </span>
+              {% endif %}
+
+              <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+
+              {# Destination badge #}
+              {% if dst.get('platform') == 'openai' %}
+                <span class="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                  OpenAI
+                </span>
+              {% elif dst.get('platform') == 'anthropic' %}
+                <span class="inline-flex items-center px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                  Anthropic
+                </span>
+              {% elif dst.get('platform') == 'pinecone' %}
+                <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                  Pinecone
+                </span>
+              {% endif %}
+            </div>
+
+            {# Webhook URL #}
+            <div class="flex items-center gap-2 mb-4 p-2.5 bg-slate-50 rounded-lg"
+                 x-data="{ copied: false }">
+              <code class="text-xs text-slate-600 truncate flex-1 min-w-0">
+                {{ base_url }}/webhook/{{ wid }}
+              </code>
+              <button
+                @click="
+                  navigator.clipboard.writeText('{{ base_url }}/webhook/{{ wid }}');
+                  copied = true;
+                  setTimeout(() => copied = false, 2000);
+                "
+                class="flex-shrink-0 text-xs px-2 py-1 rounded border transition-colors"
+                :class="copied
+                  ? 'bg-green-100 border-green-300 text-green-700'
+                  : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'"
+              >
+                <span x-text="copied ? 'Copied!' : 'Copy'"></span>
+              </button>
+            </div>
+
+            {# Action row #}
+            <div class="flex items-center gap-2 flex-wrap">
+              {# Sync button #}
+              <button @click="sync()"
+                :disabled="syncing"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors">
+                <svg x-show="!syncing" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <svg x-show="syncing" x-cloak class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span x-text="syncing ? 'Syncing…' : 'Sync now'"></span>
+              </button>
+
+              {# Sync result #}
+              <span x-show="syncMsg" x-cloak x-text="syncMsg"
+                class="text-xs px-2 py-1 rounded"
+                :class="syncOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'">
+              </span>
+
+              {# Spacer #}
+              <div class="flex-1"></div>
+
+              {# History #}
+              <a href="{{ url_for('connection_history', webhook_id=wid) }}"
+                 class="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1.5">
+                History
+              </a>
+
+              {# Delete #}
+              <form method="post"
+                    action="{{ url_for('delete_connection', webhook_id=wid) }}"
+                    x-data
+                    @submit.prevent="if(confirm('Delete this connection? This cannot be undone.')) $el.submit()">
+                <button type="submit"
+                  class="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1.5 transition-colors">
+                  Delete
+                </button>
+              </form>
+            </div>
+
+          </div>
+        {% endfor %}
+      </div>
+
+    {% else %}
+      {# Empty state #}
+      <div class="bg-white rounded-xl border border-slate-200 border-dashed p-12 text-center">
+        <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+        <p class="text-slate-500 font-medium mb-1">No connections yet</p>
+        <p class="text-slate-400 text-sm mb-5">Connect a knowledge base to an AI platform to get started.</p>
+        <a href="{{ url_for('new_connection') }}"
+           class="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+          Create your first connection
+        </a>
+      </div>
+    {% endif %}
+  </section>
+
+  {# ── Recent activity feed ──────────────────────────────────────────────────── #}
+  <section>
+    <h2 class="text-base font-semibold text-slate-900 mb-4">Recent Activity</h2>
+
+    {% if recent_log %}
+      <div class="space-y-2">
+        {% for entry in recent_log %}
+          <div class="bg-white rounded-xl border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-mono text-slate-500">{{ entry.webhook_id }}</span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-medium
+                {% if entry.status == 'synced' or entry.status == 'success' %}bg-green-100 text-green-700
+                {% elif entry.status == 'error' %}bg-red-100 text-red-700
+                {% elif entry.status == 'skipped' %}bg-slate-100 text-slate-500
+                {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                {{ entry.status }}
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-400">
+                {% if entry.synced_at %}
+                  {{ entry.synced_at.strftime('%b %d, %H:%M') if entry.synced_at is not string else entry.synced_at[:16].replace('T', ' ') }}
+                {% endif %}
+              </span>
+              <span class="text-xs text-slate-500">
+                {% if entry.items_processed %}{{ entry.items_processed }} synced{% endif %}
+                {% if entry.items_failed %}<span class="text-red-500 ml-1">{{ entry.items_failed }} failed</span>{% endif %}
+              </span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="bg-white rounded-xl border border-slate-200 p-6 text-center">
+        <p class="text-sm text-slate-400">No activity yet.</p>
+      </div>
+    {% endif %}
+  </section>
+
+</div>
+
+<script>
+function connectionCard(webhookId, initialEnabled) {
+  return {
+    enabled: initialEnabled,
+    syncing: false,
+    syncMsg: '',
+    syncOk: true,
+
+    async toggle() {
+      const res = await fetch(`/dashboard/connections/${webhookId}/toggle`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) this.enabled = data.enabled;
+    },
+
+    async sync() {
+      this.syncing = true;
+      this.syncMsg = '';
+      try {
+        const res = await fetch(`/dashboard/connections/${webhookId}/trigger`, { method: 'POST' });
+        const data = await res.json();
+        this.syncOk = res.ok;
+        if (res.ok) {
+          const count = data.pages_processed ?? data.notes_processed ?? 1;
+          this.syncMsg = `✓ ${count} item${count !== 1 ? 's' : ''} synced`;
+        } else {
+          this.syncMsg = data.error || 'Sync failed';
+        }
+      } catch (e) {
+        this.syncOk = false;
+        this.syncMsg = 'Network error';
+      } finally {
+        this.syncing = false;
+        setTimeout(() => this.syncMsg = '', 5000);
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}

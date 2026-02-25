@@ -14,10 +14,10 @@ def mock_openai_client():
 
 @pytest.fixture
 def adapter(mock_openai_client):
-    """OpenAIAdapter with a mocked client and no DB calls."""
-    with patch("adapters.openai_adapter.DBManager"):
-        from adapters.openai_adapter import OpenAIAdapter
-        return OpenAIAdapter({"api_key": "sk-test", "vector_store_id": "vs_test"})
+    """OpenAIAdapter with a mocked client. DBManager is lazy-imported inside methods,
+    so tests that need to avoid DB calls should patch _check_dedup / _store_dedup directly."""
+    from adapters.openai_adapter import OpenAIAdapter
+    return OpenAIAdapter({"api_key": "sk-test", "vector_store_id": "vs_test"})
 
 
 # ── upload ────────────────────────────────────────────────────────────────────

@@ -13,9 +13,9 @@ def mock_anthropic_client():
 
 @pytest.fixture
 def adapter(mock_anthropic_client):
-    with patch("adapters.anthropic_adapter.DBManager"):
-        from adapters.anthropic_adapter import AnthropicAdapter
-        return AnthropicAdapter({"api_key": "sk-ant-test"})
+    """AnthropicAdapter with a mocked client. DBManager is lazy-imported inside methods."""
+    from adapters.anthropic_adapter import AnthropicAdapter
+    return AnthropicAdapter({"api_key": "sk-ant-test"})
 
 
 # ── __init__ ──────────────────────────────────────────────────────────────────

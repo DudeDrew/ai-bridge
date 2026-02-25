@@ -82,9 +82,11 @@ class TestMissingOrInvalidTopLevel:
 
 class TestSourceValidation:
     def test_missing_source_type_raises(self):
+        # source must be a non-empty dict to pass the "is required" check;
+        # an empty {} is falsy so the validator raises "required" before "type".
         with pytest.raises(ValueError, match="'source.type'"):
             validate_webhook_config({
-                "source": {},
+                "source": {"extra": "field"},   # non-empty but no "type" key
                 "destination": {"platform": "openai", "vector_store_id": "vs"},
             })
 
@@ -144,10 +146,11 @@ class TestSourceValidation:
 
 class TestDestinationValidation:
     def test_missing_platform_raises(self):
+        # destination must be non-empty to pass the "is required" check first.
         with pytest.raises(ValueError, match="'destination.platform'"):
             validate_webhook_config({
                 "source": {"type": "notion", "database_id": "db1"},
-                "destination": {},
+                "destination": {"extra": "field"},  # non-empty but no "platform" key
             })
 
     def test_unsupported_platform_raises(self):

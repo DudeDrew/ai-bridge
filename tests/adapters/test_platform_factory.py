@@ -5,8 +5,7 @@ from unittest.mock import patch, MagicMock
 
 class TestPlatformFactoryCreate:
     def test_openai_returns_openai_adapter(self):
-        with patch("adapters.openai_adapter.OpenAI"), \
-             patch("adapters.openai_adapter.DBManager"):
+        with patch("adapters.openai_adapter.OpenAI"):
             from adapters.platform_factory import PlatformFactory
             from adapters.openai_adapter import OpenAIAdapter
             adapter = PlatformFactory.create(
@@ -34,8 +33,7 @@ class TestPlatformFactoryCreate:
             assert isinstance(adapter, PineconeAdapter)
 
     def test_platform_name_is_case_insensitive(self):
-        with patch("adapters.openai_adapter.OpenAI"), \
-             patch("adapters.openai_adapter.DBManager"):
+        with patch("adapters.openai_adapter.OpenAI"):
             from adapters.platform_factory import PlatformFactory
             from adapters.openai_adapter import OpenAIAdapter
             adapter = PlatformFactory.create(

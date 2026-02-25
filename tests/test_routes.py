@@ -151,8 +151,11 @@ class TestNewConnection:
             data=json.dumps(config),
             content_type="application/json",
         )
-        assert "webhook_url" in resp.get_json()
-        assert "new12345" in resp.get_json()["webhook_url"]
+        # Dashboard route nests the result under a "webhook" key
+        data = resp.get_json()
+        webhook_data = data.get("webhook", data)  # handle both flat and nested shapes
+        assert "webhook_url" in webhook_data
+        assert "new12345" in webhook_data["webhook_url"]
 
 
 # ── /dashboard/connections/<id>/trigger ──────────────────────────────────────
@@ -321,14 +324,16 @@ class TestApiCreateWebhook:
         )
         assert resp.status_code == 400
 
-    def test_non_json_body_returns_400(self, client):
+    def test_non_json_body_returns_4xx(self, client):
+        # Flask 3 returns 415 (Unsupported Media Type) when content-type is not
+        # application/json; older behaviour was 400. Both signal a bad request.
         resp = client.post(
             "/api/webhooks",
             data="not json",
             content_type="text/plain",
             headers=API_HEADERS,
         )
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 415)
 
 
 # ── /api/webhooks/<id> (delete) ──────────────────────────────────────────────
